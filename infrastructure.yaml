@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Plantilla de CloudFormation para la infraestructura de XYZ
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    Description: Tipo de instancia EC2 para el servidor de aplicaciones
+  DiskSize:
+    Type: Number
+    Default: 8
+    Description: Tamaño del disco en GB para la instancia EC2
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: us-east-2a
+      MapPublicIpOnLaunch: true
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: us-east-2b
+      MapPublicIpOnLaunch: false
+
+  WebAppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for the web application
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp
+
+  WebAppInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: ami-0c55b159cbfafe1f0 # AMI ID de la imagen de la instancia EC2
+      SecurityGroupIds:
+        - !Ref WebAppSecurityGroup
+      SubnetId: !Ref PublicSubnet
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Configuración y arranque de la aplicación
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for the database server
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref WebAppSecurityGroup
+          FromPort: 3306
+          ToPort: 3306
+          IpProtocol: tcp
+
+  DatabaseInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro # Tipo de instancia para el servidor de base de datos
+      ImageId: ami-0c55b159cbfafe1f0 # AMI ID de la imagen de la instancia EC2
+      SecurityGroupIds:
+        - !Ref DatabaseSecurityGroup
+      SubnetId: !Ref PrivateSubnet
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Configuración y arranque del servidor de base de datos
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+
+Outputs:
+  WebAppEndpoint:
+    Description: Endpoint del servidor de aplicaciones
+    Value: !GetAtt WebAppInstance.PublicIp
+  DatabaseEndpoint:
+    Description: Endpoint del servidor de base de datos
+    Value: !GetAtt DatabaseInstance.PrivateIp
